@@ -30,7 +30,7 @@ def allowed_git_source(url):
         parts.scheme == "https"
         and parts.netloc == "github.com"
         and len(segments) == 2
-        and (segments[0] == "crmne" or segments == ["oxidezap", "whatsapp-rust"])
+        and (segments[0] in ("crmne", "Yoryoboy") or segments == ["oxidezap", "whatsapp-rust"])
         and segments[1] not in ("", ".", "..")
         and "%" not in parts.path
     )
