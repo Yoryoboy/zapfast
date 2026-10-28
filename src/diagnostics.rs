@@ -132,8 +132,12 @@ fn receive_summary(message: &str) -> Option<Cow<'static, str>> {
         return Some(format!("transport disconnected ({kind}); reconnecting").into());
     }
     if let Some(rest) = message.strip_prefix("Message processing took ") {
-        let (seconds, _) = leading_number(rest)?;
-        return Some(format!("message processing took {seconds} s").into());
+        // `{:.1}s (MAX_MESSAGE_DELAY is {}s)`, matched to its end.
+        let (whole, rest) = leading_number(rest)?;
+        let tenth = rest.strip_prefix('.')?.chars().next()?.to_digit(10)?;
+        let rest = rest[2..].strip_prefix("s (MAX_MESSAGE_DELAY is ")?;
+        let (_, rest) = leading_number(rest)?;
+        return (rest == "s)").then(|| format!("message processing took {whole}.{tenth} s").into());
     }
     [
         (
@@ -549,7 +553,7 @@ mod tests {
             ),
             (
                 "Message processing took 31.5s (MAX_MESSAGE_DELAY is 30s)",
-                "message processing took 31 s",
+                "message processing took 31.5 s",
             ),
         ];
         for (message, expected) in cases {
@@ -566,6 +570,21 @@ mod tests {
             protocol_summary("Failed to enqueue message for processing: 12345@s.whatsapp.net"),
             "could not queue a message",
         );
+        // A duration is copied only when the whole line is the library's.
+        for message in [
+            "Message processing took 5491134567890@s.whatsapp.net",
+            "Message processing took 31.5s junk",
+            "Message processing took 31.5s (MAX_MESSAGE_DELAY is 30s) 12345@s.whatsapp.net",
+            "Message processing took 31s (MAX_MESSAGE_DELAY is 30s)",
+            "Message processing took 31.55s (MAX_MESSAGE_DELAY is 30s)",
+            "Message processing took 31.5s (MAX_MESSAGE_DELAY is 12345@s.whatsapp.net)",
+        ] {
+            assert_eq!(
+                protocol_summary(message),
+                "protocol diagnostic (private details omitted)",
+                "{message}",
+            );
+        }
     }
 
     #[test]
